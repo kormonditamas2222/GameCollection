@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,9 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.gamecollection.ui.theme.GameCollectionTheme
 
 data class VideoGame(
     val id: Int,
@@ -91,8 +88,18 @@ fun GameCollectionScreen() {
     var ratingError: Boolean by remember {
         mutableStateOf(false)
     }
+    var searchQuery: String by remember {
+        mutableStateOf("")
+    }
     val games = remember {
         mutableStateListOf<VideoGame>()
+    }
+
+    val isSearching = searchQuery.isNotBlank()
+    val searchFilter = searchQuery.trim()
+    val filteredGames = games.filter { game ->
+        game.title.contains(searchFilter, ignoreCase = true) ||
+                game.platform.contains(searchFilter, ignoreCase = true)
     }
 
     Column(
@@ -127,7 +134,7 @@ fun GameCollectionScreen() {
             },
             label = {Text("Platform")},
             supportingText = {
-                if (titleError) {
+                if (platformError) {
                     Text("A platform megadása kötelező", color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -163,15 +170,15 @@ fun GameCollectionScreen() {
                     Toast.makeText(context, "Minden mező kitöltése kötelező!", Toast.LENGTH_SHORT).show()
                 }
                 else {
-                    val NewVideoGame = VideoGame(
+                    val newVideoGame = VideoGame(
                         id = nextId,
                         title = title.trim(),
                         platform = platform.trim(),
                         rating = rating
                     )
-                    games.add(NewVideoGame)
+                    games.add(newVideoGame)
                     nextId++
-                    Toast.makeText(context, "Sikeresen hoozáadtad ${NewVideoGame.title} játékot", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Sikeresen hozzáadtad ${newVideoGame.title} játékot", Toast.LENGTH_SHORT).show()
                 }
                 title = ""
                 platform = ""
@@ -181,27 +188,56 @@ fun GameCollectionScreen() {
             Text("Hozzáadás")
         }
         HorizontalDivider()
-        Text("Játékok száma: ${games.count()}", fontWeight = FontWeight.Bold)
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Keresés") },
+            placeholder = { Text("Keresés címre vagy platformra...") },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("✕")
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
         if (games.isEmpty()) {
+            Text("Játékok száma: 0", fontWeight = FontWeight.Bold)
             Text("Még nincs játék a gyűjteményben.")
-        }
-        else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(
-                    items = games,
-                    key = { game -> game.id }
-                ) { game ->
-                    GameCard(
-                        game = game,
-                        onDelete = {
-                            games.remove(game)
-                        },
-                        onEdit = {
-                            editedGame -> games[games.indexOf(game)] = editedGame
-                        }
-                    )
+        } else {
+            if (isSearching) {
+                Text("Találatok: ${filteredGames.size}", fontWeight = FontWeight.Bold)
+            } else {
+                Text("Játékok száma: ${games.size}", fontWeight = FontWeight.Bold)
+            }
+
+            val displayList = if (isSearching) filteredGames else games
+            if (displayList.isEmpty()) {
+                Text("Nincs a keresésnek megfelelő játék.")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(
+                        items = displayList,
+                        key = { game -> game.id }
+                    ) { game ->
+                        GameCard(
+                            game = game,
+                            onDelete = {
+                                games.remove(game)
+                            },
+                            onEdit = { editedGame ->
+                                val index = games.indexOfFirst { it.id == game.id }
+                                if (index != -1) {
+                                    games[index] = editedGame
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -393,7 +429,7 @@ fun GameCard(game: VideoGame, onDelete: () -> Unit, onEdit: (VideoGame) -> Unit)
 
 @Composable
 fun GameAvatar(title: String) {
-    val initials = title.slice(0..1).uppercase()
+    val initials = title.take(2).uppercase()
     Box(modifier = Modifier.size(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
         Alignment.Center) {
         Text(initials, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
